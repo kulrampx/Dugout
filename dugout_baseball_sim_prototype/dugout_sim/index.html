@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>더그아웃 (Dugout) - 1~9 스탯 야구 시뮬레이션 프로토타입</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --panel-2: #273549;
+      --border: #334155;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --green: #22c55e;
+      --amber: #f59e0b;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    header {
+      background: #0b1120;
+      border-bottom: 1px solid var(--border);
+      padding: 14px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    header h1 { margin: 0; font-size: 1.2rem; display: flex; align-items: center; gap: 8px; }
+    .badge {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+    }
+    .team-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    select, button, input[type="number"] {
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 11px;
+      font-size: 0.88rem;
+    }
+    button {
+      cursor: pointer;
+      font-weight: 600;
+      transition: 0.15s;
+    }
+    button:hover:not(:disabled) { filter: brightness(1.15); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-primary { background: #0284c7; border-color: #38bdf8; }
+    .btn-green { background: #15803d; border-color: #22c55e; }
+    .btn-amber { background: #b45309; border-color: #f59e0b; }
+    .btn-red { background: #b91c1c; border-color: #ef4444; }
+
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 350px 1fr 390px;
+      gap: 16px;
+    }
+    @media (max-width: 1150px) {
+      .container { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .card h2 {
+      margin: 0 0 10px 0;
+      font-size: 0.96rem;
+      color: var(--accent);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Scoreboard */
+    .scoreboard-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    .scoreboard-table th, .scoreboard-table td {
+      border: 1px solid var(--border);
+      padding: 5px 4px;
+    }
+    .scoreboard-table th { background: #0f172a; color: var(--muted); }
+    .score-highlight { font-weight: 800; color: #fde047; font-size: 1rem; }
+
+    /* Diamond & Count */
+    .field-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 12px 6px;
+      background: radial-gradient(circle at center, #14532d 0%, #0f172a 85%);
+      border-radius: 10px;
+      border: 1px solid #1e3a2f;
+    }
+    .diamond {
+      position: relative;
+      width: 130px;
+      height: 130px;
+    }
+    .base {
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      background: rgba(255,255,255,0.18);
+      border: 2px solid #cbd5e1;
+      transform: rotate(45deg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+    .base span { transform: rotate(-45deg); }
+    .base.active { background: #facc15; border-color: #fef08a; color: #0f172a; box-shadow: 0 0 12px #facc15; }
+    .base-2 { top: 12px; left: 50px; }
+    .base-3 { top: 50px; left: 12px; }
+    .base-1 { top: 50px; right: 12px; }
+    .base-home { bottom: 12px; left: 50px; background: #e2e8f0; color: #0f172a; }
+
+    .bso-panel { font-size: 0.92rem; }
+    .bso-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+    .bso-label { width: 18px; font-weight: 800; color: var(--muted); }
+    .dot { width: 13px; height: 13px; border-radius: 50%; background: #334155; display: inline-block; }
+    .dot.ball.on { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+    .dot.strike.on { background: #facc15; box-shadow: 0 0 6px #facc15; }
+    .dot.out.on { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+
+    /* Matchup */
+    .matchup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .player-card {
+      background: var(--panel-2);
+      border-radius: 8px;
+      padding: 10px;
+      border: 1px solid var(--border);
+    }
+    .player-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; }
+    .stat-pills { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .pill {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 0.76rem;
+    }
+
+    /* Tactics Form */
+    .tactic-group { margin-bottom: 10px; }
+    .tactic-group label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
+    .radio-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .radio-chip {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      padding: 5px 9px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .radio-chip input { margin-right: 4px; }
+    .radio-chip.selected { border-color: var(--accent); background: rgba(56, 189, 248, 0.16); }
+
+    /* Extra Base Modal Box */
+    .decision-banner {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid #f59e0b;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    /* Log */
+    .log-list {
+      max-height: 540px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .log-item {
+      background: #0f172a;
+      border-left: 3px solid var(--border);
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 0.83rem;
+    }
+    .log-item.HIT, .log-item.HR, .log-item.SCORE { border-left-color: #22c55e; }
+    .log-item.OUT, .log-item.ERROR { border-left-color: #ef4444; }
+    .log-item.STEAL, .log-item.PICKOFF, .log-item.BUNT { border-left-color: #f59e0b; }
+    .log-item.PITCH { border-left-color: #38bdf8; }
+    .log-meta { font-size: 0.72rem; color: var(--muted); margin-bottom: 2px; }
+
+    /* Roster Table */
+    .roster-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    .roster-table th, .roster-table td { border-bottom: 1px solid var(--border); padding: 4px 3px; text-align: center; }
+    .roster-table input { width: 38px; padding: 2px 4px; text-align: center; font-size: 0.78rem; }
+    .runner-names { font-size: 0.8rem; color: #fde047; margin-top: 8px; text-align: center; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>⚾ 더그아웃 (DUGOUT) <span class="badge">1~9 스탯(5=평균) 1구 시뮬레이션 프로토타입</span></h1>
+    <div class="team-bar">
+      <label>원정(초):</label>
+      <select id="awayTeamSelect"></select>
+      <label>홈(말):</label>
+      <select id="homeTeamSelect"></select>
+      <button class="btn-primary" id="newGameBtn">새 경기 시작</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- LEFT: Scoreboard, Diamond, Current Matchup -->
+    <div>
+      <div class="card">
+        <h2>📊 전광판</h2>
+        <div style="overflow-x:auto;">
+          <table class="scoreboard-table" id="scoreboardTable"></table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🏟️ 필드 & 볼카운트 <span id="inningStatus" style="color:#fde047;">1회초</span></h2>
+        <div class="field-box">
+          <div class="diamond">
+            <div class="base base-2" id="base2"><span>2루</span></div>
+            <div class="base base-3" id="base3"><span>3루</span></div>
+            <div class="base base-1" id="base1"><span>1루</span></div>
+            <div class="base base-home"><span>H</span></div>
+          </div>
+          <div class="bso-panel">
+            <div class="bso-row"><span class="bso-label">B</span><span id="ballsDots"></span></div>
+            <div class="bso-row"><span class="bso-label">S</span><span id="strikesDots"></span></div>
+            <div class="bso-row"><span class="bso-label">O</span><span id="outsDots"></span></div>
+          </div>
+        </div>
+        <div class="runner-names" id="runnerNames">주자 없음</div>
+      </div>
+
+      <div class="card">
+        <h2>⚔️ 현재 투타 대결</h2>
+        <div class="matchup-grid">
+          <div class="player-card" id="pitcherCard"></div>
+          <div class="player-card" id="batterCard"></div>
+        </div>
+        <div style="margin-top:10px; display:flex; gap:6px; align-items:center;">
+          <label style="font-size:0.8rem; color:var(--muted);">불펜 교체:</label>
+          <select id="bullpenSelect" style="flex:1;"></select>
+          <button id="changePitcherBtn">교체</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER: Manager Tactics & Step-by-Step Execution -->
+    <div>
+      <div id="extraBaseContainer"></div>
+
+      <div class="card">
+        <h2>📋 공격 팀 감독 작전 (<span id="offenseTeamLabel">원정</span>)</h2>
+
+        <div class="tactic-group">
+          <label>0. 번트 지시 (지시 시 1.1 타격 주문 자동 생략)</label>
+          <div class="radio-row">
+            <label class="radio-chip"><input type="checkbox" id="buntCheck" /> 희생/기습 번트 시도</label>
+          </div>
+        </div>
+
+        <div class="tactic-group">
+          <label>1. 도루 / 더블스틸 지시</label>
+          <div class="radio-row" id="stealOptions"></div>
+        </div>
+
+        <div class="tactic-group" id="batterOrderGroup">
+          <label>1.1 타격 주문 (도루 시 런앤히트/스탠딩 연계 가능)</label>
+          <div class="radio-row">
+            <label class="radio-chip"><input type="radio" name="batterOrder" value="NORMAL" checked /> 일반적 타격 (선구 판단)</label>
+            <label class="radio-chip"><input type="radio" name="batterOrder" value="HIT_AND_RUN" /> 런앤히트 (무조건 스윙)</label>
+            <label class="radio-chip"><input type="radio" name="batterOrder" value="TAKE" /> 스탠딩 (무조건 노스윙)</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🛡️ 수비 팀 감독 작전 (<span id="defenseTeamLabel">홈</span>)</h2>
+
+        <div class="tactic-group">
+          <label>1.2 투구 전 견제 (체력 -3 소모, 타석당 최대 2회)</label>
+          <div class="radio-row">
+            <button class="btn-amber" id="pickoff1Btn">1루 견제</button>
+            <button class="btn-amber" id="pickoff2Btn">2루 견제</button>
+            <button class="btn-amber" id="pickoff3Btn">3루 견제</button>
+            <span id="pickoffCountLabel" style="font-size:0.8rem; color:var(--muted); align-self:center;">(0/2회)</span>
+          </div>
+        </div>
+
+        <div class="tactic-group">
+          <label>2. 투수 투구 지시</label>
+          <div class="radio-row">
+            <label class="radio-chip"><input type="radio" name="pitchOrder" value="AGGRESSIVE" /> 적극적 공략 (볼↓, 보더라인↑, 실투↑↑)</label>
+            <label class="radio-chip"><input type="radio" name="pitchOrder" value="NORMAL" checked /> 일반적 투구</label>
+            <label class="radio-chip"><input type="radio" name="pitchOrder" value="CHASE" /> 유인구 (볼↑, 보더라인↓, 실투↓↓)</label>
+          </div>
+        </div>
+
+        <div class="tactic-group">
+          <label>3.1.1 / 3.2.1 도루 시 포수 송구 & 투수 커트 선택</label>
+          <div class="radio-row">
+            <label class="radio-chip"><input type="radio" name="defenseThrow" value="THROW_2B" checked /> 2루 송구</label>
+            <label class="radio-chip"><input type="radio" name="defenseThrow" value="THROW_2B_CUT" /> 2루 송구 + 투수 커트 (홈 주자 저격)</label>
+            <label class="radio-chip"><input type="radio" name="defenseThrow" value="THROW_3B" /> 3루 송구</label>
+            <label class="radio-chip"><input type="radio" name="defenseThrow" value="THROW_HOME" /> 홈 송구</label>
+            <label class="radio-chip"><input type="radio" name="defenseThrow" value="NO_THROW" /> 송구 안 함</label>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button class="btn-green" id="stepPitchBtn" style="flex:2; padding:12px; font-size:1rem;">⚾ 1구 투구 진행 (Step Pitch)</button>
+          <button class="btn-primary" id="simHalfInningBtn" style="flex:1; padding:12px;">⏩ 반이닝 자동 진행</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📜 실시간 문자 중계 로그</h2>
+        <div class="log-list" id="logList"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Live Stat Editor (1~9 Scale) -->
+    <div>
+      <div class="card">
+        <h2>🎛️ 실시간 능력치 테스트 편집기 (1~9)</h2>
+        <p style="font-size:0.78rem; color:var(--muted); margin-top:0;">
+          엑셀(`25' 시즌 검색기.xlsx`)에서 불러온 투수 스탯과 타자 스탯을 바로 수정하며 확률 변화를 테스트할 수 있습니다.
+        </p>
+        <div style="display:flex; gap:6px; margin-bottom:8px;">
+          <button id="tabAwayBtn" class="btn-primary" style="flex:1;">원정 라인업</button>
+          <button id="tabHomeBtn" style="flex:1;">홈 라인업</button>
+        </div>
+        <div id="rosterEditorContainer" style="max-height: 680px; overflow-y:auto;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { PITCHERS_DB, SAMPLE_BATTERS_BY_TEAM, createGenericLineup } from "./data.js";
+    import { BaseballGame } from "./gameEngine.js";
+    import { getEffectivePitcherStats } from "./pitchEngine.js";
+    import { STAT_CONFIG } from "./config.js";
+
+    const TEAMS = [...new Set(PITCHERS_DB.map((p) => p.team))];
+    const awaySelect = document.getElementById("awayTeamSelect");
+    const homeSelect = document.getElementById("homeTeamSelect");
+
+    TEAMS.forEach((t) => {
+      awaySelect.add(new Option(t, t));
+      homeSelect.add(new Option(t, t));
+    });
+    awaySelect.value = TEAMS.includes("한화") ? "한화" : TEAMS[0];
+    homeSelect.value = TEAMS.includes("기아") ? "기아" : TEAMS[1];
+
+    let game = null;
+    let editorSide = "away";
+
+    function buildTeamData(teamName) {
+      const teamPitchers = PITCHERS_DB.filter((p) => p.team === teamName);
+      // SP 우선 정렬 후 RP/SU/CL 배치
+      const sortedPitchers = [...teamPitchers].sort((a, b) => {
+        const order = { SP: 0, RP: 1, SU: 2, CL: 3 };
+        return (order[a.pos] ?? 4) - (order[b.pos] ?? 4);
+      });
+      const rawBatters = SAMPLE_BATTERS_BY_TEAM[teamName] || createGenericLineup(teamName);
+      return {
+        name: teamName,
+        pitchers: sortedPitchers.map((p) => ({ ...p })),
+        batters: rawBatters.map((b) => ({ ...b })),
+      };
+    }
+
+    function startNewGame() {
+      game = new BaseballGame(buildTeamData(awaySelect.value), buildTeamData(homeSelect.value));
+      renderAll();
+    }
+
+    function getSelectedRadio(name) {
+      const el = document.querySelector(`input[name="${name}"]:checked`);
+      return el ? el.value : null;
+    }
+
+    function renderScoreboard() {
+      const maxInn = Math.max(9, game.inning);
+      let html = `<tr><th>팀</th>`;
+      for (let i = 1; i <= maxInn; i++) html += `<th>${i}</th>`;
+      html += `<th>R</th><th>H</th><th>E</th></tr>`;
+
+      ["away", "home"].forEach((side) => {
+        const t = game.teams[side];
+        html += `<tr><td><strong>${t.name}</strong></td>`;
+        for (let i = 0; i < maxInn; i++) {
+          const val = game.inningScores[side][i];
+          html += `<td>${val !== undefined ? val : "-"}</td>`;
+        }
+        html += `<td class="score-highlight">${t.score}</td><td>${t.hits}</td><td>${t.errors}</td></tr>`;
+      });
+      document.getElementById("scoreboardTable").innerHTML = html;
+    }
+
+    function renderFieldAndCount() {
+      document.getElementById("inningStatus").textContent = `${game.inning}회${game.isTop ? "초" : "말"}`;
+      [1, 2, 3].forEach((b) => {
+        document.getElementById(`base${b}`).classList.toggle("active", Boolean(game.bases[b]));
+      });
+
+      const runnerDesc = [1, 2, 3]
+        .filter((b) => game.bases[b])
+        .map((b) => `${b}루: ${game.bases[b].name}(주${game.bases[b].speed})`)
+        .join(" | ");
+      document.getElementById("runnerNames").textContent = runnerDesc || "주자 없음";
+
+      const renderDots = (id, count, max, cls) => {
+        let s = "";
+        for (let i = 0; i < max; i++) s += `<span class="dot ${cls} ${i < count ? "on" : ""}"></span> `;
+        document.getElementById(id).innerHTML = s;
+      };
+      renderDots("ballsDots", game.count.balls, 3, "ball");
+      renderDots("strikesDots", game.count.strikes, 2, "strike");
+      renderDots("outsDots", game.outs, 2, "out");
+    }
+
+    function renderMatchup() {
+      const p = game.getPitcher();
+      const b = game.getBatter();
+      const eff = getEffectivePitcherStats(p);
+      const maxPitches = p.stamina * STAT_CONFIG.PITCHES_PER_STAMINA;
+
+      document.getElementById("pitcherCard").innerHTML = `
+        <div class="player-title">⚾ 투수: ${p.name} (${p.pos})</div>
+        <div style="font-size:0.78rem; color:${eff.isTired ? "#ef4444" : "#94a3b8"};">
+          투구수: ${p.pitchesThrown} / ${maxPitches} ${eff.isTired ? "(체력 저하!)" : ""}
+        </div>
+        <div class="stat-pills">
+          <span class="pill">체 ${p.stamina}</span>
+          <span class="pill">제 ${p.control}</span>
+          <span class="pill">구 ${p.stuff}</span>
+          <span class="pill">변 ${p.movement}</span>
+        </div>
+      `;
+
+      document.getElementById("batterCard").innerHTML = `
+        <div class="player-title">🏏 타자: ${b.name} (${b.pos})</div>
+        <div style="font-size:0.78rem; color:#94a3b8;">
+          오늘: ${b.ab}타수 ${b.hits}안타 ${b.hr}홈런 ${b.rbi}타점
+        </div>
+        <div class="stat-pills">
+          <span class="pill">컨 ${b.contact}</span>
+          <span class="pill">파 ${b.power}</span>
+          <span class="pill">선 ${b.eye}</span>
+          <span class="pill">주 ${b.speed}</span>
+          <span class="pill">수 ${b.defense}</span>
+          <span class="pill">송 ${b.arm}</span>
+        </div>
+      `;
+
+      const def = game.getDefense();
+      const bpSelect = document.getElementById("bullpenSelect");
+      bpSelect.innerHTML = "";
+      def.pitchers.forEach((pit, idx) => {
+        const opt = new Option(`${pit.name} (${pit.pos} | 체${pit.stamina}/제${pit.control}/구${pit.stuff}/변${pit.movement})`, idx);
+        if (idx === def.pitcherIdx) opt.selected = true;
+        bpSelect.add(opt);
+      });
+    }
+
+    function renderTactics() {
+      document.getElementById("offenseTeamLabel").textContent = game.getOffense().name;
+      document.getElementById("defenseTeamLabel").textContent = game.getDefense().name;
+
+      // 번트 체크 시 1.1 생략 시각 표시
+      const buntChecked = document.getElementById("buntCheck").checked;
+      document.getElementById("batterOrderGroup").style.opacity = buntChecked ? "0.4" : "1";
+
+      // 현재 주자 상황에 맞는 도루 선택지 동적 생성
+      const prevSteal = getSelectedRadio("stealPlan") || "NONE";
+      const stealContainer = document.getElementById("stealOptions");
+      const opts = [{ val: "NONE", label: "도루 안 함" }];
+      if (game.bases[1] && !game.bases[2]) opts.push({ val: "STEAL_2B", label: `2루 단독 도루 (${game.bases[1].name})` });
+      if (game.bases[2] && !game.bases[3]) opts.push({ val: "STEAL_3B", label: `3루 단독 도루 (${game.bases[2].name})` });
+      if (game.bases[1] && game.bases[2] && !game.bases[3]) opts.push({ val: "DOUBLE_2B_3B", label: "1·2루 더블스틸" });
+      if (game.bases[1] && game.bases[3] && !game.bases[2]) opts.push({ val: "DOUBLE_2B_HOME", label: "1·3루 더블스틸 (커트 대응형)" });
+
+      stealContainer.innerHTML = opts
+        .map(
+          (o) => `<label class="radio-chip"><input type="radio" name="stealPlan" value="${o.val}" ${
+            o.val === prevSteal ? "checked" : ""
+          } /> ${o.label}</label>`
+        )
+        .join("");
+      if (!getSelectedRadio("stealPlan")) {
+        stealContainer.querySelector("input").checked = true;
+      }
+
+      // 견제 버튼 활성화
+      document.getElementById("pickoff1Btn").disabled = !game.bases[1] || game.pickoffsThisPA >= STAT_CONFIG.MAX_PICKOFFS_PER_PA || game.gameOver;
+      document.getElementById("pickoff2Btn").disabled = !game.bases[2] || game.pickoffsThisPA >= STAT_CONFIG.MAX_PICKOFFS_PER_PA || game.gameOver;
+      document.getElementById("pickoff3Btn").disabled = !game.bases[3] || game.pickoffsThisPA >= STAT_CONFIG.MAX_PICKOFFS_PER_PA || game.gameOver;
+      document.getElementById("pickoffCountLabel").textContent = `(${game.pickoffsThisPA}/${STAT_CONFIG.MAX_PICKOFFS_PER_PA}회)`;
+
+      // 5.2 추가 진루 선택 배너
+      const extraContainer = document.getElementById("extraBaseContainer");
+      if (game.pendingExtraBase) {
+        const btns = game.pendingExtraBase.options
+          .map((opt, idx) => `<button class="btn-green extra-opt-btn" data-idx="${idx}">${opt.label}</button>`)
+          .join(" ");
+        extraContainer.innerHTML = `
+          <div class="decision-banner">
+            <div style="font-weight:700; color:#fde047; margin-bottom:8px;">⚡ [5.2 추가 진루 명령] 안타 이후 루상 주자 추가 진루를 지시할까요?</div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              ${btns}
+              <button id="holdExtraBtn">현재 베이스 정지 (안전 선택)</button>
+            </div>
+          </div>
+        `;
+        extraContainer.querySelectorAll(".extra-opt-btn").forEach((btn) => {
+          btn.onclick = () => {
+            const idx = Number(btn.dataset.idx);
+            game.executeExtraBase(game.pendingExtraBase.options[idx]);
+            renderAll();
+          };
+        });
+        document.getElementById("holdExtraBtn").onclick = () => {
+          game.executeExtraBase("HOLD");
+          renderAll();
+        };
+      } else {
+        extraContainer.innerHTML = "";
+      }
+
+      document.getElementById("stepPitchBtn").disabled = game.gameOver || Boolean(game.pendingExtraBase);
+      document.getElementById("simHalfInningBtn").disabled = game.gameOver;
+    }
+
+    function renderLogs() {
+      const container = document.getElementById("logList");
+      container.innerHTML = game.logs
+        .slice(0, 60)
+        .map(
+          (l) => `
+          <div class="log-item ${l.tag}">
+            <div class="log-meta">${l.inning} | ${l.outs} | ${l.count}</div>
+            <div>${l.msg}</div>
+          </div>
+        `
+        )
+        .join("");
+    }
+
+    function renderRosterEditor() {
+      const team = game.teams[editorSide];
+      const curP = team.pitchers[team.pitcherIdx];
+      let html = `
+        <div style="margin-bottom:10px;">
+          <strong style="font-size:0.84rem; color:#38bdf8;">현재 등판 투수 (${curP.name})</strong>
+          <table class="roster-table">
+            <tr><th>체</th><th>제</th><th>구</th><th>변</th></tr>
+            <tr>
+              <td><input type="number" min="1" max="15" value="${curP.stamina}" data-type="p" data-stat="stamina" /></td>
+              <td><input type="number" min="1" max="9" value="${curP.control}" data-type="p" data-stat="control" /></td>
+              <td><input type="number" min="1" max="9" value="${curP.stuff}" data-type="p" data-stat="stuff" /></td>
+              <td><input type="number" min="1" max="9" value="${curP.movement}" data-type="p" data-stat="movement" /></td>
+            </tr>
+          </table>
+        </div>
+        <strong style="font-size:0.84rem; color:#38bdf8;">타자 라인업 (1~9 스탯 수정 가능)</strong>
+        <table class="roster-table">
+          <tr><th>타순</th><th>이름</th><th>컨</th><th>파</th><th>선</th><th>주</th><th>수</th><th>송</th></tr>
+      `;
+      team.batters.forEach((b, i) => {
+        html += `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${b.name}(${b.pos})</td>
+            <td><input type="number" min="1" max="9" value="${b.contact}" data-idx="${i}" data-stat="contact" /></td>
+            <td><input type="number" min="1" max="9" value="${b.power}" data-idx="${i}" data-stat="power" /></td>
+            <td><input type="number" min="1" max="9" value="${b.eye}" data-idx="${i}" data-stat="eye" /></td>
+            <td><input type="number" min="1" max="9" value="${b.speed}" data-idx="${i}" data-stat="speed" /></td>
+            <td><input type="number" min="1" max="9" value="${b.defense}" data-idx="${i}" data-stat="defense" /></td>
+            <td><input type="number" min="1" max="9" value="${b.arm}" data-idx="${i}" data-stat="arm" /></td>
+          </tr>
+        `;
+      });
+      html += `</table>`;
+      const box = document.getElementById("rosterEditorContainer");
+      box.innerHTML = html;
+
+      box.querySelectorAll("input").forEach((inp) => {
+        inp.onchange = () => {
+          const val = Number(inp.value);
+          if (inp.dataset.type === "p") {
+            curP[inp.dataset.stat] = val;
+          } else {
+            team.batters[Number(inp.dataset.idx)][inp.dataset.stat] = val;
+          }
+          renderMatchup();
+        };
+      });
+    }
+
+    function renderAll() {
+      renderScoreboard();
+      renderFieldAndCount();
+      renderMatchup();
+      renderTactics();
+      renderLogs();
+      renderRosterEditor();
+    }
+
+    document.getElementById("newGameBtn").onclick = startNewGame;
+    document.getElementById("buntCheck").onchange = renderTactics;
+    document.getElementById("pickoff1Btn").onclick = () => { game.executePickoff(1); renderAll(); };
+    document.getElementById("pickoff2Btn").onclick = () => { game.executePickoff(2); renderAll(); };
+    document.getElementById("pickoff3Btn").onclick = () => { game.executePickoff(3); renderAll(); };
+    document.getElementById("changePitcherBtn").onclick = () => {
+      game.changePitcher(Number(document.getElementById("bullpenSelect").value));
+      renderAll();
+    };
+
+    document.getElementById("stepPitchBtn").onclick = () => {
+      game.stepPitch({
+        bunt: document.getElementById("buntCheck").checked,
+        stealPlan: getSelectedRadio("stealPlan") || "NONE",
+        batterOrder: getSelectedRadio("batterOrder") || "NORMAL",
+        pitchOrder: getSelectedRadio("pitchOrder") || "NORMAL",
+        defenseThrow: getSelectedRadio("defenseThrow") || "THROW_2B",
+      });
+      document.getElementById("buntCheck").checked = false;
+      renderAll();
+    };
+
+    document.getElementById("simHalfInningBtn").onclick = () => {
+      const startTop = game.isTop;
+      const startInning = game.inning;
+      let guard = 0;
+      while (!game.gameOver && game.isTop === startTop && game.inning === startInning && guard < 120) {
+        if (game.pendingExtraBase) {
+          game.executeExtraBase("HOLD");
+        } else {
+          game.stepPitch({
+            bunt: false,
+            stealPlan: "NONE",
+            batterOrder: "NORMAL",
+            pitchOrder: "NORMAL",
+            defenseThrow: "THROW_2B",
+          });
+        }
+        guard++;
+      }
+      renderAll();
+    };
+
+    document.getElementById("tabAwayBtn").onclick = () => { editorSide = "away"; renderRosterEditor(); };
+    document.getElementById("tabHomeBtn").onclick = () => { editorSide = "home"; renderRosterEditor(); };
+
+    startNewGame();
+  </script>
+</body>
+</html>
